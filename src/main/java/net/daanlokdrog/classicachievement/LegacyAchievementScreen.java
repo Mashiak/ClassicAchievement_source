@@ -1,6 +1,7 @@
 package net.daanlokdrog.classicachievement;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.Util;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.advancements.DisplayInfo;
@@ -16,28 +17,17 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-
-import net.daanlokdrog.classicachievement.ClassicAchievementConfig;
-import net.minecraft.Util;
-
 import java.util.*;
-
-//restore old achievement menu. pre-1.12 style.
-//Since the logic of the old achievement system is completely different from the modern advancement system, adjustments have been made for the modern version.
 
 public class LegacyAchievementScreen extends Screen implements ClientAdvancements.Listener {
     private static final ResourceLocation ACHIEVEMENT_BG = new ResourceLocation("minecraft", "textures/gui/achievement/achievement_background.png");
-    
     private final ClientAdvancements clientAdvancements;
     private final Map<Advancement, AdvancementProgress> progressMap = new HashMap<>();
     private final Map<Advancement, int[]> posCache = new HashMap<>();
     private final List<Advancement> rootAdvancements = new ArrayList<>();
-    
     private int currentPageIndex = 0;
-    private Button pageSwitchButton;
-    protected int imageWidth = 256;
-    protected int imageHeight = 202;
-    protected double xScrollP, yScrollP, xScrollTarget, yScrollTarget;
+    private final int imageWidth = 256, imageHeight = 202;
+    private double xScrollP, yScrollP, xScrollTarget, yScrollTarget;
     private int minX, maxX, minY, maxY;
     protected float zoom = 1.0F;
 
@@ -49,419 +39,214 @@ public class LegacyAchievementScreen extends Screen implements ClientAdvancement
     @Override
     protected void init() {
         this.clientAdvancements.setListener(this);
-        int left = (this.width - this.imageWidth) / 2;
-        int top = (this.height - this.imageHeight) / 2;
-        
+        int left = (this.width - imageWidth) / 2, top = (this.height - imageHeight) / 2;
         refreshRoots();
-
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), (btn) -> this.onClose())
-                .bounds(left + 141, top + 174, 100, 20).build());
-        
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose()).bounds(left + 141, top + 174, 100, 20).build());
         if (rootAdvancements.size() > 1) {
-            this.pageSwitchButton = Button.builder(getCurrentPageName(), (btn) -> {
+            this.addRenderableWidget(Button.builder(getCurrentPageName(), b -> {
                 currentPageIndex = (currentPageIndex + 1) % rootAdvancements.size();
-                btn.setMessage(getCurrentPageName());
-                calculateRadialLayout();
-                centerOnRoot();
-            }).bounds(left + 15, top + 174, 125, 20).build();
-            this.addRenderableWidget(pageSwitchButton);
+                b.setMessage(getCurrentPageName());
+                updateLayout();
+            }).bounds(left + 15, top + 174, 125, 20).build());
         }
+        updateLayout();
+    }
 
+    private void updateLayout() {
         calculateRadialLayout();
         centerOnRoot();
     }
 
     private void refreshRoots() {
         rootAdvancements.clear();
-        for (Advancement adv : clientAdvancements.getAdvancements().getAllAdvancements()) {
-            if (adv.getDisplay() != null && adv.getParent() == null) {
-                rootAdvancements.add(adv);
-            }
+        for (Advancement a : clientAdvancements.getAdvancements().getAllAdvancements()) {
+            if (a.getDisplay() != null && a.getParent() == null) rootAdvancements.add(a);
         }
         if (currentPageIndex >= rootAdvancements.size()) currentPageIndex = 0;
     }
 
-private Component getCurrentPageName() {
+    private Component getCurrentPageName() {
         if (rootAdvancements.isEmpty()) return Component.literal("Minecraft");
-        
-        Advancement root = rootAdvancements.get(currentPageIndex);
-        ResourceLocation id = root.getId();
-
-        if (id.getNamespace().equals("minecraft") && id.getPath().startsWith("story/")) {
-            return Component.literal("Minecraft");
-        }
-        
-        return root.getDisplay().getTitle();
+        Advancement r = rootAdvancements.get(currentPageIndex);
+        return (r.getId().getNamespace().equals("minecraft") && r.getId().getPath().startsWith("story/")) ? Component.literal("Minecraft") : r.getDisplay().getTitle();
     }
 
     private void calculateRadialLayout() {
         posCache.clear();
         if (rootAdvancements.isEmpty()) return;
         growBranch(rootAdvancements.get(currentPageIndex), 0, 0, 0, 0);
-
-        int rMinX = Integer.MAX_VALUE, rMaxX = Integer.MIN_VALUE;
-        int rMinY = Integer.MAX_VALUE, rMaxY = Integer.MIN_VALUE;
-        for (int[] pos : posCache.values()) {
-            rMinX = Math.min(rMinX, pos[0]); rMaxX = Math.max(rMaxX, pos[0]);
-            rMinY = Math.min(rMinY, pos[1]); rMaxY = Math.max(rMaxY, pos[1]);
+        int rMinX = Integer.MAX_VALUE, rMaxX = Integer.MIN_VALUE, rMinY = Integer.MAX_VALUE, rMaxY = Integer.MIN_VALUE;
+        for (int[] p : posCache.values()) {
+            rMinX = Math.min(rMinX, p[0]); rMaxX = Math.max(rMaxX, p[0]);
+            rMinY = Math.min(rMinY, p[1]); rMaxY = Math.max(rMaxY, p[1]);
         }
-        
-        this.minX = rMinX - 112;
-        this.maxX = rMaxX + 112;
-        this.minY = rMinY - 250;
-        this.maxY = rMaxY + 250;
+        minX = rMinX - 112; maxX = rMaxX + 112; minY = rMinY - 250; maxY = rMaxY + 250;
     }
 
-private void growBranch(Advancement adv, int x, int y, double parentAngle, int depth) {
+    private void growBranch(Advancement adv, int x, int y, double pAngle, int depth) {
         posCache.put(adv, new int[]{x, y});
+        Random rnd = new Random(adv.getId().toString().hashCode());
+        double spread = Math.toRadians(depth == 0 ? 360 : 160), start = pAngle - spread / 2.0;
+        
         List<Advancement> children = new ArrayList<>();
         for (Advancement child : adv.getChildren()) {
-            if (child.getDisplay() != null) {
-                children.add(child);
-            }
+            if (child.getDisplay() != null) children.add(child);
         }
-        
-        if (children.isEmpty()) return;
-
-        Random random = new Random(adv.getId().toString().hashCode());
-        double spread = Math.toRadians(depth == 0 ? 360 : 160);
-        double startAngle = parentAngle - spread / 2.0;
 
         for (int i = 0; i < children.size(); i++) {
-            double angle = startAngle + (i + 0.5) * (spread / children.size());
-            double dist = 100 + random.nextInt(20);
-            int nx = x + (int) (Math.cos(angle) * dist);
-            int ny = y + (int) (Math.sin(angle) * dist);
-            
-            if (Math.abs(ny - y) < 32) {
-                ny = y + (ny >= y ? 32 : -32);
-            }
-            
+            double angle = start + (i + 0.5) * (spread / children.size());
+            int nx = x + (int)(Math.cos(angle) * (100 + rnd.nextInt(20)));
+            int ny = y + (int)(Math.sin(angle) * (100 + rnd.nextInt(20)));
+            if (Math.abs(ny - y) < 32) ny = y + (ny >= y ? 32 : -32);
             growBranch(children.get(i), nx, ny, angle, depth + 1);
         }
     }
 
     private void centerOnRoot() {
         if (rootAdvancements.isEmpty()) return;
-        int[] pos = posCache.get(rootAdvancements.get(currentPageIndex));
-        if (pos != null) {
-            this.xScrollTarget = pos[0] - 112;
-            this.yScrollTarget = pos[1] - 77;
+        int[] p = posCache.get(rootAdvancements.get(currentPageIndex));
+        if (p != null) {
+            xScrollTarget = xScrollP = p[0] - 112;
+            yScrollTarget = yScrollP = p[1] - 77;
             clampScrollTarget();
-            this.xScrollP = this.xScrollTarget;
-            this.yScrollP = this.yScrollTarget;
         }
     }
 
     private void clampScrollTarget() {
-        this.xScrollTarget = Mth.clamp(this.xScrollTarget, minX, maxX);
-        this.yScrollTarget = Mth.clamp(this.yScrollTarget, minY, maxY);
+        xScrollTarget = Mth.clamp(xScrollTarget, minX, maxX);
+        yScrollTarget = Mth.clamp(yScrollTarget, minY, maxY);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-
-    	boolean olderUI = ClassicAchievementConfig.OLDER_UI.get();
-
-    	if (olderUI) {
-            this.zoom = 1.2F;
-            return false;
-        }
-        
-        float oldZoom = this.zoom;
-        if (delta < 0) this.zoom += 0.25F;
-        else if (delta > 0) this.zoom -= 0.25F;
-        this.zoom = Mth.clamp(this.zoom, 1.0F, 2.0F);
-
-        if (this.zoom != oldZoom) {
-            float f = this.zoom * (float)this.imageWidth;
-            float f1 = this.zoom * (float)this.imageHeight;
-            float f3 = oldZoom * (float)this.imageWidth;
-            float f4 = oldZoom * (float)this.imageHeight;
-            this.xScrollP -= (double)((f - f3) * 0.5F);
-            this.yScrollP -= (double)((f1 - f4) * 0.5F);
-            this.xScrollTarget = this.xScrollP;
-            this.yScrollTarget = this.yScrollP;
+    public boolean mouseScrolled(double mx, double my, double delta) {
+        if (ClassicAchievementConfig.OLDER_UI.get()) { this.zoom = 1.2F; return false; }
+        float old = zoom;
+        zoom = Mth.clamp(zoom + (delta < 0 ? 0.25F : -0.25F), 1.0F, 2.0F);
+        if (zoom != old) {
+            xScrollP -= (zoom * imageWidth - old * imageWidth) * 0.5;
+            yScrollP -= (zoom * imageHeight - old * imageHeight) * 0.5;
+            xScrollTarget = xScrollP; yScrollTarget = yScrollP;
         }
         return true;
     }
 
-@Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-
-    	if (ClassicAchievementConfig.OLDER_UI.get()) {
-            this.zoom = 1.2F;
-        }
-        
-        this.xScrollP += (this.xScrollTarget - this.xScrollP) * 0.2D;
-        this.yScrollP += (this.yScrollTarget - this.yScrollP) * 0.2D;
-        
-        this.renderBackground(guiGraphics);
-        int left = (this.width - this.imageWidth) / 2;
-        int top = (this.height - this.imageHeight) / 2;
-        int viewX = left + 16, viewY = top + 17;
-
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(viewX, viewY, 0.0F);
-        guiGraphics.enableScissor(viewX, viewY, viewX + 224, viewY + 155);
-        
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().scale(1.0F / this.zoom, 1.0F / this.zoom, 1.0F);
-        
-        renderLegacyBackground(guiGraphics);
-
-        Advancement hovered = null;
-        if (!rootAdvancements.isEmpty()) {
-            float zoomMX = (float)(mouseX - viewX) * this.zoom;
-            float zoomMY = (float)(mouseY - viewY) * this.zoom;
-            hovered = renderAdvancementTree(guiGraphics, (int)zoomMX, (int)zoomMY);
-        }
-
-        guiGraphics.pose().popPose();
-        guiGraphics.disableScissor();
-        guiGraphics.pose().popPose();
-        
+    @Override
+    public void render(GuiGraphics g, int mx, int my, float pt) {
+        if (ClassicAchievementConfig.OLDER_UI.get()) zoom = 1.2F;
+        xScrollP += (xScrollTarget - xScrollP) * 0.2;
+        yScrollP += (yScrollTarget - yScrollP) * 0.2;
+        renderBackground(g);
+        int l = (width - imageWidth) / 2, t = (height - imageHeight) / 2, vx = l + 16, vy = t + 17;
+        g.pose().pushPose();
+        g.pose().translate(vx, vy, 0);
+        g.enableScissor(vx, vy, vx + 224, vy + 155);
+        g.pose().pushPose();
+        g.pose().scale(1 / zoom, 1 / zoom, 1);
+        renderLegacyBackground(g);
+        Advancement h = rootAdvancements.isEmpty() ? null : renderAdvancementTree(g, (int)((mx - vx) * zoom), (int)((my - vy) * zoom));
+        g.pose().popPose();
+        g.disableScissor();
+        g.pose().popPose();
         RenderSystem.enableBlend();
-        
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 200.0F);
-        
-        guiGraphics.blit(ACHIEVEMENT_BG, left, top, 0, 0, this.imageWidth, this.imageHeight);
-        guiGraphics.drawString(this.font, Component.translatable("gui.achievements"), left + 15, top + 5, 4210752, false);
-        
-        guiGraphics.pose().popPose();
-        
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 210.0F);
-        super.render(guiGraphics, mouseX, mouseY, partialTicks);
-        guiGraphics.pose().popPose();
-
-        if (hovered != null) renderLegacyTooltip(guiGraphics, hovered, mouseX, mouseY);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 200);
+        g.blit(ACHIEVEMENT_BG, l, t, 0, 0, imageWidth, imageHeight);
+        g.drawString(font, Component.translatable("gui.achievements"), l + 15, t + 5, 4210752, false);
+        g.pose().popPose();
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 210);
+        super.render(g, mx, my, pt);
+        g.pose().popPose();
+        if (h != null) renderLegacyTooltip(g, h, mx, my);
     }
 
-private void renderLegacyBackground(GuiGraphics guiGraphics) {
+    private void renderLegacyBackground(GuiGraphics g) {
         Minecraft mc = Minecraft.getInstance();
-        int scrollX = (int) Math.floor(xScrollP);
-        int scrollY = (int) Math.floor(yScrollP);
-        
-        int totalScrollX = scrollX + 288;
-        int totalScrollY = scrollY + 288;
-
-        int k1 = totalScrollX >> 4;
-        int l1 = totalScrollY >> 4;
-        int i2 = Math.floorMod(totalScrollX, 16);
-        int j2 = Math.floorMod(totalScrollY, 16);
-        
-        Random random = new Random();
-
-        for (int l3 = 0; (float)l3 * 16.0F - (float)j2 < 155.0F * zoom; ++l3) {
-            float f2 = Mth.clamp(0.6F - (float) (l1 + l3) / 25.0F * 0.3F, 0.3F, 0.6F);
-            for (int i4 = 0; (float)i4 * 16.0F - (float)i2 < 224.0F * zoom; ++i4) {
-                random.setSeed((long) (mc.getUser().getUuid().hashCode() + k1 + i4 + (l1 + l3) * 16));
-                int curY = l1 + l3;
-                int j4 = random.nextInt(1 + Math.max(0, curY)) + curY / 2;
-                Block block;
-                if (j4 <= 37 && curY != 35) {
-                    if (j4 == 22) block = random.nextInt(2) == 0 ? Blocks.DIAMOND_ORE : Blocks.REDSTONE_ORE;
-                    else if (j4 == 10) block = Blocks.IRON_ORE;
-                    else if (j4 == 8) block = Blocks.COAL_ORE;
-                    else if (j4 > 4) block = Blocks.STONE;
-                    else if (j4 > 0) block = Blocks.DIRT;
-                    else if (j4 >= -2 && random.nextInt(4) <= (j4 + 2)) block = Blocks.DIRT;
-                    else block = Blocks.SAND;
-                } else {
-                    block = Blocks.BEDROCK;
-                }
-
-                TextureAtlasSprite sprite = mc.getBlockRenderer().getBlockModel(block.defaultBlockState()).getParticleIcon();
+        int sx = (int)Math.floor(xScrollP) + 288, sy = (int)Math.floor(yScrollP) + 288;
+        int k1 = sx >> 4, l1 = sy >> 4, i2 = Math.floorMod(sx, 16), j2 = Math.floorMod(sy, 16);
+        Random rnd = new Random();
+        for (int y = 0; y * 16.0F - j2 < 155.0F * zoom; y++) {
+            float f = Mth.clamp(0.6F - (l1 + y) / 25.0F * 0.3F, 0.3F, 0.6F);
+            for (int x = 0; x * 16.0F - i2 < 224.0F * zoom; x++) {
+                rnd.setSeed(mc.getUser().getUuid().hashCode() + k1 + x + (l1 + y) * 16L);
+                int cy = l1 + y, j4 = rnd.nextInt(1 + Math.max(0, cy)) + cy / 2;
+                Block b = (j4 <= 37 && cy != 35) ? (j4 == 22 ? (rnd.nextBoolean() ? Blocks.DIAMOND_ORE : Blocks.REDSTONE_ORE) : (j4 == 10 ? Blocks.IRON_ORE : (j4 == 8 ? Blocks.COAL_ORE : (j4 > 4 ? Blocks.STONE : (j4 > 0 ? Blocks.DIRT : (j4 >= -2 && rnd.nextInt(4) <= j4 + 2 ? Blocks.DIRT : Blocks.SAND)))))) : Blocks.BEDROCK;
+                TextureAtlasSprite s = mc.getBlockRenderer().getBlockModel(b.defaultBlockState()).getParticleIcon();
                 RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
-                guiGraphics.setColor(f2, f2, f2, 1.0F);
-                guiGraphics.blit(i4 * 16 - i2, l3 * 16 - j2, 0, 16, 16, sprite);
+                g.setColor(f, f, f, 1);
+                g.blit(x * 16 - i2, y * 16 - j2, 0, 16, 16, s);
             }
         }
-        guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        g.setColor(1, 1, 1, 1);
     }
 
-private Advancement renderAdvancementTree(GuiGraphics guiGraphics, int relativeMX, int relativeMY) {
-        Advancement hovered = null;
-        boolean olderUI = ClassicAchievementConfig.OLDER_UI.get();
-        boolean isBright = !olderUI || (Util.getMillis() / 400L % 2L == 0L);
-
-        for (Advancement adv : posCache.keySet()) {
-            if (adv.getParent() == null || !posCache.containsKey(adv.getParent())) continue;
-            int[] pos = posCache.get(adv);
-            int[] pPos = posCache.get(adv.getParent());
-            
-            int dist = getRequirementCount(adv);
-            if (dist > 4 && !isUnlocked(adv)) continue;
-
-            int x = pos[0] - (int)xScrollP;
-            int y = pos[1] - (int)yScrollP;
-            int px = pPos[0] - (int)xScrollP;
-            int py = pPos[1] - (int)yScrollP;
-
-            boolean unlocked = isUnlocked(adv);
-            boolean canUnlock = canUnlock(adv);
-
-            int color;
-            float alpha = 1.0F;
-
-            if (unlocked) {
-                color = 0xFFA0A0A0;
-            } else if (canUnlock) {
-                color = 0xFF00FF00;
-                if (olderUI && !isBright) {
-                    alpha = 0.5F;
-                }
-            } else {
-                color = 0xFF000000;
-            }
-
-            int centerX = px + 13;
-            int centerY = py + 13;
-            int targetX = x + 13;
-            int targetY = y + 13;
-
-            guiGraphics.setColor((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, alpha);
-            guiGraphics.hLine(centerX, targetX, centerY, -1);
-            guiGraphics.vLine(targetX, centerY, targetY, -1);
-            guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-            if (!olderUI) {
-                guiGraphics.setColor((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, 1.0F);
-                if (targetY != centerY) {
-                    if (targetY > centerY) guiGraphics.blit(ACHIEVEMENT_BG, targetX - 5, targetY - 18, 96, 234, 11, 7);
-                    else guiGraphics.blit(ACHIEVEMENT_BG, targetX - 5, targetY + 11, 96, 241, 11, 7);
-                } else if (centerX != targetX) {
-                    if (targetX > centerX) guiGraphics.blit(ACHIEVEMENT_BG, targetX - 18, targetY - 5, 114, 234, 7, 11);
-                    else guiGraphics.blit(ACHIEVEMENT_BG, targetX + 11, targetY - 5, 107, 234, 7, 11);
-                }
-                guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+    private Advancement renderAdvancementTree(GuiGraphics g, int rmx, int rmy) {
+        Advancement hov = null;
+        boolean old = ClassicAchievementConfig.OLDER_UI.get(), bright = !old || (Util.getMillis() / 400L % 2 == 0);
+        for (Advancement a : posCache.keySet()) {
+            if (a.getParent() == null || !posCache.containsKey(a.getParent()) || (getRequirementCount(a) > 4 && !isUnlocked(a))) continue;
+            int[] p = posCache.get(a), pp = posCache.get(a.getParent());
+            boolean done = isUnlocked(a), can = canUnlock(a);
+            int c = done ? 0xFFA0A0A0 : (can ? 0xFF00FF00 : 0xFF000000);
+            g.setColor((c >> 16 & 255) / 255f, (c >> 8 & 255) / 255f, (c & 255) / 255f, (old && can && !done && !bright) ? 0.5F : 1.0F);
+            int tx = p[0] - (int)xScrollP + 13, ty = p[1] - (int)yScrollP + 13, cx = pp[0] - (int)xScrollP + 13, cy = pp[1] - (int)yScrollP + 13;
+            g.hLine(cx, tx, cy, -1); g.vLine(tx, cy, ty, -1);
+            if (!old) {
+                if (ty != cy) g.blit(ACHIEVEMENT_BG, tx - 5, ty > cy ? ty - 18 : ty + 11, 96, ty > cy ? 234 : 241, 11, 7);
+                else if (cx != tx) g.blit(ACHIEVEMENT_BG, tx > cx ? tx - 18 : tx + 11, ty - 5, tx > cx ? 114 : 107, 234, 7, 11);
             }
         }
-
-        for (Advancement adv : posCache.keySet()) {
-            int[] pos = posCache.get(adv);
-            int x = pos[0] - (int)xScrollP, y = pos[1] - (int)yScrollP;
-            if (x < -26 || y < -26 || x > 224 * zoom || y > 155 * zoom) continue;
-
-            int dist = getRequirementCount(adv);
-            if (dist > 4 && !isUnlocked(adv)) continue;
-
-            boolean isDone = isUnlocked(adv);
-            boolean canUnlock = canUnlock(adv);
-
-            if (isDone) {
-                guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
-            } else if (canUnlock) {
-                if (olderUI) {
-                    float br = isBright ? 0.776F : 0.466F;
-                    guiGraphics.setColor(br, br, br, 1.0F);
-                } else {
-                    guiGraphics.setColor(0.4F, 0.4F, 0.4F, 1.0F);
-                }
-            } else {
-                float brightness = (dist == 3 ? 0.2F : 0.1F);
-                guiGraphics.setColor(brightness, brightness, brightness, 1.0F);
-            }
-
-            int u = adv.getDisplay().getFrame().getName().equals("challenge") ? 26 : 0;
-            guiGraphics.blit(ACHIEVEMENT_BG, x, y, u, 202, 26, 26);
-            guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
-            guiGraphics.renderFakeItem(adv.getDisplay().getIcon(), x + 5, y + 5);
-
-            if (relativeMX >= x && relativeMX <= x + 26 && relativeMY >= y && relativeMY <= y + 26) {
-                if (isDone || canUnlock || dist <= 3) {
-                    hovered = adv;
-                }
-            }
+        g.setColor(1, 1, 1, 1);
+        for (Advancement a : posCache.keySet()) {
+            int[] p = posCache.get(a);
+            int x = p[0] - (int)xScrollP, y = p[1] - (int)yScrollP, d = getRequirementCount(a);
+            if (x < -26 || y < -26 || x > 224 * zoom || y > 155 * zoom || (d > 4 && !isUnlocked(a))) continue;
+            boolean done = isUnlocked(a), can = canUnlock(a);
+            float br = done ? 1.0F : (can ? (old ? (bright ? 0.776F : 0.466F) : 0.4F) : (d == 3 ? 0.2F : 0.1F));
+            g.setColor(br, br, br, 1);
+            g.blit(ACHIEVEMENT_BG, x, y, a.getDisplay().getFrame().getName().equals("challenge") ? 26 : 0, 202, 26, 26);
+            g.setColor(1, 1, 1, 1);
+            g.renderFakeItem(a.getDisplay().getIcon(), x + 5, y + 5);
+            if (rmx >= x && rmx <= x + 26 && rmy >= y && rmy <= y + 26 && (done || can || d <= 3)) hov = a;
         }
-        return hovered;
+        return hov;
     }
 
-private void renderLegacyTooltip(GuiGraphics guiGraphics, Advancement adv, int mX, int mY) {
-        DisplayInfo d = adv.getDisplay();
-        boolean isDone = isUnlocked(adv);
-        boolean canUnlock = canUnlock(adv);
-        boolean isChallenge = d.getFrame().getName().equals("challenge");
-        int dist = getRequirementCount(adv);
-        
-        boolean showUnknown = dist == 3 && !isDone && !canUnlock;
-        
-        int titleColor;
-        if (isDone || canUnlock) {
-            titleColor = isChallenge ? 0xFFFFFF80 : 0xFFFFFFFF;
-        } else {
-            titleColor = isChallenge ? 0xFF808040 : 0xFF808080;
-        }
-
-        String titleText = showUnknown ? Component.translatable("achievement.unknown").getString() : d.getTitle().getString();
-        
-        List<net.minecraft.util.FormattedCharSequence> descLines;
-        if (isDone || canUnlock) {
-            descLines = this.font.split(d.getDescription(), 120);
-        } else {
-            descLines = Collections.emptyList();
-        }
-
-        String parentTitle = (adv.getParent() != null && adv.getParent().getDisplay() != null) ? adv.getParent().getDisplay().getTitle().getString() : null;
-        boolean showRequires = !isDone && !canUnlock && parentTitle != null && dist <= 3;
-
-        int totalHeight = 12 + descLines.size() * 9;
-        if (isDone) totalHeight += 12; else if (showRequires) totalHeight += 22;
-
-        int boxWidth = Math.max(this.font.width(titleText), 120);
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
-        guiGraphics.fillGradient(mX + 9, mY - 7, mX + boxWidth + 15, mY + totalHeight + 3, 0xC0101010, 0xC0101010);
-        guiGraphics.drawString(this.font, titleText, mX + 12, mY, titleColor, true);
-        
-        int curY = mY + 12;
-        for (var line : descLines) {
-            guiGraphics.drawString(this.font, line, mX + 12, curY, -6250336, false);
-            curY += 9;
-        }
-        
-        if (isDone) {
-            guiGraphics.drawString(this.font, Component.translatable("achievement.taken"), mX + 12, curY + 4, -7302913, false);
-        } else if (showRequires) {
-            guiGraphics.drawString(this.font, Component.translatable("achievement.requires.text"), mX + 12, curY + 4, -9416624, false);
-            guiGraphics.drawString(this.font, "‘" + parentTitle + "’", mX + 12, curY + 13, -9416624, false);
-        }
-        guiGraphics.pose().popPose();
+    private void renderLegacyTooltip(GuiGraphics g, Advancement a, int mx, int my) {
+        DisplayInfo d = a.getDisplay();
+        boolean done = isUnlocked(a), can = canUnlock(a), chal = d.getFrame().getName().equals("challenge");
+        int dist = getRequirementCount(a), color = (done || can) ? (chal ? 0xFFFFFF80 : 0xFFFFFFFF) : (chal ? 0xFF808040 : 0xFF808080);
+        String title = (dist == 3 && !done && !can) ? Component.translatable("achievement.unknown").getString() : d.getTitle().getString();
+        List<net.minecraft.util.FormattedCharSequence> lines = (done || can) ? font.split(d.getDescription(), 120) : Collections.emptyList();
+        String pTitle = (a.getParent() != null && a.getParent().getDisplay() != null) ? a.getParent().getDisplay().getTitle().getString() : null;
+        boolean req = !done && !can && pTitle != null && dist <= 3;
+        int h = 12 + lines.size() * 9 + (done ? 12 : (req ? 22 : 0)), w = Math.max(font.width(title), 120);
+        g.pose().pushPose(); g.pose().translate(0, 0, 400);
+        g.fillGradient(mx + 9, my - 7, mx + w + 15, my + h + 3, 0xC0101010, 0xC0101010);
+        g.drawString(font, title, mx + 12, my, color, true);
+        int cy = my + 12;
+        for (var l : lines) { g.drawString(font, l, mx + 12, cy, -6250336, false); cy += 9; }
+        if (done) g.drawString(font, Component.translatable("achievement.taken"), mx + 12, cy + 4, -7302913, false);
+        else if (req) { g.drawString(font, Component.translatable("achievement.requires.text"), mx + 12, cy + 4, -9416624, false); g.drawString(font, "‘" + pTitle + "’", mx + 12, cy + 13, -9416624, false); }
+        g.pose().popPose();
     }
 
-    private int getRequirementCount(Advancement adv) {
-        int count = 0;
-        Advancement current = adv;
-        while (current != null && !isUnlocked(current)) {
-            count++;
-            current = current.getParent();
-        }
-        return count;
+    private int getRequirementCount(Advancement a) {
+        int c = 0;
+        for (Advancement cur = a; cur != null && !isUnlocked(cur); cur = cur.getParent()) c++;
+        return c;
     }
 
-    private boolean isUnlocked(Advancement adv) { 
-        AdvancementProgress p = progressMap.get(adv); 
-        return p != null && p.isDone(); 
-    }
-    
-    private boolean canUnlock(Advancement adv) { 
-        return adv.getParent() == null || isUnlocked(adv.getParent()); 
-    }
-
-    @Override public boolean mouseDragged(double mX, double mY, int b, double dX, double dY) {
-        if (b == 0) { this.xScrollTarget -= dX * zoom; this.yScrollTarget -= dY * zoom; clampScrollTarget(); return true; }
-        return false;
-    }
-
-    @Override public void removed() { this.clientAdvancements.setListener(null); }
+    private boolean isUnlocked(Advancement a) { AdvancementProgress p = progressMap.get(a); return p != null && p.isDone(); }
+    private boolean canUnlock(Advancement a) { return a.getParent() == null || isUnlocked(a.getParent()); }
+    @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) { if (b == 0) { xScrollTarget -= dx * zoom; yScrollTarget -= dy * zoom; clampScrollTarget(); return true; } return false; }
+    @Override public void removed() { clientAdvancements.setListener(null); }
     @Override public boolean isPauseScreen() { return true; }
-    @Override public void onUpdateAdvancementProgress(Advancement a, AdvancementProgress p) { this.progressMap.put(a, p); }
+    @Override public void onUpdateAdvancementProgress(Advancement a, AdvancementProgress p) { progressMap.put(a, p); }
     @Override public void onSelectedTabChanged(Advancement a) {}
-    @Override public void onAddAdvancementRoot(Advancement a) { refreshRoots(); calculateRadialLayout(); }
-    @Override public void onRemoveAdvancementRoot(Advancement a) { refreshRoots(); calculateRadialLayout(); }
+    @Override public void onAddAdvancementRoot(Advancement a) { refreshRoots(); updateLayout(); }
+    @Override public void onRemoveAdvancementRoot(Advancement a) { refreshRoots(); updateLayout(); }
     @Override public void onAddAdvancementTask(Advancement a) {}
     @Override public void onRemoveAdvancementTask(Advancement a) {}
-    @Override public void onAdvancementsCleared() { this.progressMap.clear(); refreshRoots(); calculateRadialLayout(); }
+    @Override public void onAdvancementsCleared() { progressMap.clear(); refreshRoots(); updateLayout(); }
 }
