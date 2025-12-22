@@ -1,0 +1,28 @@
+{
+  "mappings": {
+    "net/daanlokdrog/classicachievement/mixins/ClientAdvancementsMixin": {
+      "update": "Lnet/minecraft/client/multiplayer/ClientAdvancements;m_104399_(Lnet/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket;)V"
+    },
+    "net/daanlokdrog/classicachievement/mixins/InventoryScreenMixin": {
+      "init": "Lnet/minecraft/client/gui/screens/inventory/InventoryScreen;m_7856_()V"
+    },
+    "net/daanlokdrog/classicachievement/mixins/PlayerAdvancementsMixin": {
+      "Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator;evaluateVisibility(Lnet/minecraft/advancements/Advancement;Ljava/util/function/Predicate;Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator$Output;)V": "Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator;m_264099_(Lnet/minecraft/advancements/Advancement;Ljava/util/function/Predicate;Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator$Output;)V",
+      "updateTreeVisibility": "Lnet/minecraft/server/PlayerAdvancements;m_264265_(Lnet/minecraft/advancements/Advancement;Ljava/util/Set;Ljava/util/Set;)V"
+    }
+  },
+  "data": {
+    "searge": {
+      "net/daanlokdrog/classicachievement/mixins/ClientAdvancementsMixin": {
+        "update": "Lnet/minecraft/client/multiplayer/ClientAdvancements;m_104399_(Lnet/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket;)V"
+      },
+      "net/daanlokdrog/classicachievement/mixins/InventoryScreenMixin": {
+        "init": "Lnet/minecraft/client/gui/screens/inventory/InventoryScreen;m_7856_()V"
+      },
+      "net/daanlokdrog/classicachievement/mixins/PlayerAdvancementsMixin": {
+        "Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator;evaluateVisibility(Lnet/minecraft/advancements/Advancement;Ljava/util/function/Predicate;Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator$Output;)V": "Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator;m_264099_(Lnet/minecraft/advancements/Advancement;Ljava/util/function/Predicate;Lnet/minecraft/server/advancements/AdvancementVisibilityEvaluator$Output;)V",
+        "updateTreeVisibility": "Lnet/minecraft/server/PlayerAdvancements;m_264265_(Lnet/minecraft/advancements/Advancement;Ljava/util/Set;Ljava/util/Set;)V"
+      }
+    }
+  }
+}

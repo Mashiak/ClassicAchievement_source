@@ -1,0 +1,33 @@
+{
+    "display": {
+      "icon": {
+        "item": "minecraft:bookshelf"
+      },
+    "title": {
+      "translate": "advancements.bookcase.title"
+    },
+    "description": {
+      "translate": "advancements.bookcase.descr"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+    },
+    "parent": "achievements:enchantments",
+    "criteria": {
+      "requirement": {
+        "trigger": "minecraft:inventory_changed",
+        "conditions": {
+          "items": [
+            {
+              "items": [
+                "minecraft:bookshelf"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+  

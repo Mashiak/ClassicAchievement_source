@@ -1,0 +1,42 @@
+{
+    "parent": "achievements:build_furnace",
+    "display": {
+        "title": {
+            "text": "美味的鱼儿"
+        },
+        "description": {
+            "text": "捕鱼，然后烹饪！",
+            "color": "gray"
+        },
+        "icon": {
+            "item": "minecraft:cooked_cod"
+        },
+    "title": {
+      "translate": "advancements.delicious_fish.title"
+    },
+    "description": {
+      "translate": "advancements.delicious_fish.descr"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+    },
+    "criteria": {
+        "delicious_fish": {
+            "trigger": "minecraft:inventory_changed",
+            "conditions": {
+                "items": [
+                    {
+                        "tag": "achievements:cooked_fish"
+                    }
+                ]
+            }
+        }
+    },
+    "requirements": [
+        [
+          "delcious_fish"
+        ]
+      ]
+}

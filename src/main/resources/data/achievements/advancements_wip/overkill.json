@@ -1,0 +1,35 @@
+{
+"parent": "achievements:diamonds",
+  "display": {
+    "icon": {
+      "id": "minecraft:diamond_sword",
+      "count": 1,
+    },
+    "title": {
+      "translate": "advancements.overkill.title"
+    },
+    "description": {
+      "translate": "advancements.overkill.descr"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "parent": "minecraft:adventure/kill_a_mob",
+  "criteria": {
+    "requirement": {
+      "trigger": "minecraft:player_hurt_entity",
+      "conditions": {
+        "damage": {
+          "dealt": {
+            "min": 18,
+            "max": 10000000
+          },
+          "blocked": false
+        }
+      }
+    }
+  },
+  "sends_telemetry_event": true
+}
