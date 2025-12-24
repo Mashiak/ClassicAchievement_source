@@ -42,7 +42,7 @@ public class LegacyAchievementScreen extends Screen implements ClientAdvancement
         int left = (this.width - imageWidth) / 2, top = (this.height - imageHeight) / 2;
         refreshRoots();
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose()).bounds(left + 141, top + 174, 100, 20).build());
-        if (rootAdvancements.size() > 1) {
+        if (rootAdvancements.size() > 1 && !ClassicAchievementConfig.HIDE_PAGE.get()) {
             this.addRenderableWidget(Button.builder(getCurrentPageName(), b -> {
                 currentPageIndex = (currentPageIndex + 1) % rootAdvancements.size();
                 b.setMessage(getCurrentPageName());
@@ -57,19 +57,34 @@ public class LegacyAchievementScreen extends Screen implements ClientAdvancement
         centerOnRoot();
     }
 
-    private void refreshRoots() {
+     private void refreshRoots() {
         rootAdvancements.clear();
         for (Advancement a : clientAdvancements.getAdvancements().getAllAdvancements()) {
-            if (a.getDisplay() != null && a.getParent() == null) rootAdvancements.add(a);
+            if (a.getDisplay() != null && a.getParent() == null) {
+                rootAdvancements.add(a);
+            }
         }
+        
+        for (int i = 0; i < rootAdvancements.size(); i++) {
+            Advancement r = rootAdvancements.get(i);
+            if ("minecraft".equals(r.getId().getNamespace()) && r.getId().getPath().contains("story/")) {
+                currentPageIndex = i; 
+                break;
+            }
+        }
+
         if (currentPageIndex >= rootAdvancements.size()) currentPageIndex = 0;
     }
 
-    private Component getCurrentPageName() {
-        if (rootAdvancements.isEmpty()) return Component.literal("Minecraft");
-        Advancement r = rootAdvancements.get(currentPageIndex);
-        return (r.getId().getNamespace().equals("minecraft") && r.getId().getPath().startsWith("story/")) ? Component.literal("Minecraft") : r.getDisplay().getTitle();
+private Component getCurrentPageName() {
+    if (rootAdvancements.isEmpty()) return Component.literal("Minecraft");
+    Advancement r = rootAdvancements.get(currentPageIndex);
+    if ("minecraft".equals(r.getId().getNamespace()) && r.getId().getPath().contains("story/")) {
+        return Component.literal("Minecraft");
     }
+
+    return r.getDisplay().getTitle();
+}
 
     private void calculateRadialLayout() {
         posCache.clear();
@@ -83,10 +98,12 @@ public class LegacyAchievementScreen extends Screen implements ClientAdvancement
         minX = rMinX - 112; maxX = rMaxX + 112; minY = rMinY - 250; maxY = rMaxY + 250;
     }
 
-    private void growBranch(Advancement adv, int x, int y, double pAngle, int depth) {
+private void growBranch(Advancement adv, int x, int y, double pAngle, int depth) {
         posCache.put(adv, new int[]{x, y});
         Random rnd = new Random(adv.getId().toString().hashCode());
-        double spread = Math.toRadians(depth == 0 ? 360 : 160), start = pAngle - spread / 2.0;
+        
+        double spread = Math.toRadians(depth == 0 ? 360 : 160);
+        double start = pAngle - spread / 2.0;
         
         List<Advancement> children = new ArrayList<>();
         for (Advancement child : adv.getChildren()) {
@@ -95,11 +112,38 @@ public class LegacyAchievementScreen extends Screen implements ClientAdvancement
 
         for (int i = 0; i < children.size(); i++) {
             double angle = start + (i + 0.5) * (spread / children.size());
-            int nx = x + (int)(Math.cos(angle) * (100 + rnd.nextInt(20)));
-            int ny = y + (int)(Math.sin(angle) * (100 + rnd.nextInt(20)));
-            if (Math.abs(ny - y) < 32) ny = y + (ny >= y ? 32 : -32);
+            
+            int nx = 0, ny = 0;
+            boolean foundSpace = false;
+            float distanceScale = 1.0f;
+            for (int tryCount = 0; tryCount < 8; tryCount++) {
+                int dist = (int)((100 + rnd.nextInt(30)) * distanceScale);
+                nx = x + (int)(Math.cos(angle) * dist);
+                ny = y + (int)(Math.sin(angle) * dist);
+                if (Math.abs(ny - y) < 35) ny = y + (ny >= y ? 35 : -35);
+
+                if (isPosClear(nx, ny, adv)) {
+                    foundSpace = true;
+                    break;
+                }
+                distanceScale += 0.3f;
+                angle += (rnd.nextBoolean() ? 0.1 : -0.1); 
+            }
+
             growBranch(children.get(i), nx, ny, angle, depth + 1);
         }
+    }
+
+    private boolean isPosClear(int nx, int ny, Advancement currentAdv) {
+        int thresholdSq = 45 * 45; 
+        for (int[] pos : posCache.values()) {
+            int dx = nx - pos[0];
+            int dy = ny - pos[1];
+            if (dx * dx + dy * dy < thresholdSq) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void centerOnRoot() {
