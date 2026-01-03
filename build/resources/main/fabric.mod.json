@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "classicachievement",
+  "version": "1.0-SNAPSHOT",
+  "name": "ClassicAchievement",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "unlicense",
+  "icon": "assets/classicachievement/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "org.daanlokdrog.classicachievement.client.ClassicachievementDataGenerator"
+    ],
+    "client": [
+      "org.daanlokdrog.classicachievement.client.ClassicachievementClient"
+    ],
+    "main": [
+      "org.daanlokdrog.classicachievement.Classicachievement"
+    ]
+  },
+  "mixins": [
+    "classicachievement.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "fabric-api": "*",
+    "minecraft": "1.21.1"
+  }
+}
